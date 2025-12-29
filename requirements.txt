@@ -4,6 +4,11 @@ langchain-community
 langchain-core
 langchain-text-splitters
 zhipuai
+httpx
+sniffio
+trio
+anyio
 faiss-cpu
 pymupdf
 python-dotenv
+
