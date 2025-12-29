@@ -1,6 +1,8 @@
 streamlit
 langchain
 langchain-community
+langchain-core
+langchain-text-splitters
 zhipuai
 faiss-cpu
 pymupdf
