@@ -9,8 +9,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import ZhipuAIEmbeddings
-from langchain.docstore.document import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document               
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from zhipuai import ZhipuAI
 
 #配置与初始化
@@ -717,4 +717,5 @@ if current_messages and current_messages[-1]["role"] == "user":
                 save_history_to_disk()
 
             except Exception as e:
+
                 st.error(f"生成回答出错: {e}")
