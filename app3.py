@@ -632,7 +632,11 @@ if current_messages and current_messages[-1]["role"] == "user":
             for d in docs:
                 src = d.metadata.get('source', '未知来源')
                 type_ = d.metadata.get('type', '未知')
-                ref_sources.add(f"{src} ({type_})")
+                article_title = d.metadata.get('article', '')
+                if article_title:
+                    ref_sources.add(f"{src} - {article_title}")
+                else:
+                    ref_sources.add(f"{src} ({type_})")
                 content = d.page_content
 
                 if type_ == "article":
@@ -731,7 +735,6 @@ if current_messages and current_messages[-1]["role"] == "user":
                     {
                         "role": "assistant",
                         "content": full_response,
-                        # ✅把来源也保存下来：这样刷新/换电脑/切换会话也不会丢
                         "sources": sorted(list(ref_sources)) if ref_sources else []
                     }
                 )
@@ -741,3 +744,4 @@ if current_messages and current_messages[-1]["role"] == "user":
             except Exception as e:
 
                 st.error(f"生成回答出错: {e}")
+
