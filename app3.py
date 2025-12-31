@@ -630,15 +630,12 @@ if current_messages and current_messages[-1]["role"] == "user":
 
             # 2. 遍历文档进行分类
             for d in docs:
+                for d in docs:
                 src = d.metadata.get('source', '未知来源')
                 type_ = d.metadata.get('type', '未知')
-                article_title = d.metadata.get('article', '')
-                if article_title:
-                    ref_sources.add(f"{src} - {article_title}")
-                else:
-                    ref_sources.add(f"{src} ({type_})")
+                ref_sources.add(f"{src} ({type_})")
                 content = d.page_content
-
+                
                 if type_ == "article":
                     list_articles.append(content)
                 elif type_ == "case":
@@ -744,4 +741,5 @@ if current_messages and current_messages[-1]["role"] == "user":
             except Exception as e:
 
                 st.error(f"生成回答出错: {e}")
+
 
