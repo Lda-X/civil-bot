@@ -653,7 +653,17 @@ if current_messages and current_messages[-1]["role"] == "user":
             context_application_point = ""
             context_main_point = ""
             context_scenario = ""
-
+            history_str = ""
+            recent_history = current_messages[:-1][-4:] 
+            
+            if recent_history:
+                history_str = "\n**【历史对话参考】：**\n"
+                for msg in recent_history:
+                    role_label = "用户" if msg["role"] == "user" else "AI助手"
+                    clean_content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
+                    history_str += f"{role_label}：{clean_content}\n"
+            else:
+                history_str = "（无历史对话）"
             prompt = last_user_msg
 
             #Prompt
@@ -692,7 +702,7 @@ if current_messages and current_messages[-1]["role"] == "user":
             {context_explanation}
             {context_application_point}
             {context_main_point}
-                
+            {history_str}
             **典型案例与生活场景：**
             {context_case}
             {context_scenario}
@@ -740,6 +750,7 @@ if current_messages and current_messages[-1]["role"] == "user":
             except Exception as e:
 
                 st.error(f"生成回答出错: {e}")
+
 
 
 
