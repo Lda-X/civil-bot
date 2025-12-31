@@ -677,7 +677,7 @@ if current_messages and current_messages[-1]["role"] == "user":
         context_explanation = "\n".join(list_explanation) if list_explanation else "暂无详细解读"
         context_case = "\n".join(list_case) if list_case else "暂无相关案例"
         context_risk_tip = "\n".join(list_risk) if list_risk else "暂无风险提示"
-
+    
         context_application_point = ""
         context_main_point = ""
         context_scenario = ""
@@ -693,7 +693,7 @@ if current_messages and current_messages[-1]["role"] == "user":
         else:
             history_str = "（无历史对话）"
         prompt = last_user_msg
-
+    
         #Prompt
         system_prompt = f"""
         你是一位经验丰富的中国法律专家，精通《中华人民共和国民法典》及其配套的权威解读、司法案例、生活场景示例和风险提示。
@@ -711,21 +711,21 @@ if current_messages and current_messages[-1]["role"] == "user":
             - **法律条文依据**：优先引用《民法典》原文。请明确指出是“第XXX条”。
             - **立法原意与司法解释**：结合检索到的专家解读，阐述该条文的立法精神和司法实践中的理解。
             - **核心要点**：提炼条文主旨和关键的适用要点。
-
+    
             ### 2. 💡 **情景化解读与案例说明**
             - **生活化场景模拟**：将抽象的法律条文，通过一个贴近用户生活或工作场景的**具体示例**来阐述。
             - **典型案例分析**：引用检索到的真实案例，说明法律在实践中的具体应用方式、责任划分及法律后果。
             - **风险规避**：根据检索到的风险提示，告知用户在类似情境下可能存在的风险点。
-
+    
             ### 3. ✅ **专业行动建议**
             - 基于以上分析，提供1-3条可操作的、具有建设性的行动建议。
-
+    
         ---
         **【可参考的上下文信息】**
-
+    
         **《民法典》原文片段：**
         {chr(10).join(context_articles)}
-
+    
         **专家解读与适用要点：**
         {context_explanation}
         {context_application_point}
@@ -740,16 +740,16 @@ if current_messages and current_messages[-1]["role"] == "user":
             
         **【用户问题】：**
         {prompt}
-"""
-
+    """
+    
     # 生成回答
     with st.chat_message("assistant", avatar="⚖️"):
         placeholder = st.empty()
         full_response = ""
-
+    
         try:
             stream = get_zhipu_chat_response(system_prompt, temperature, top_p, do_stream)
-
+    
             if do_stream:
                 for chunk in stream:
                     content = chunk.choices[0].delta.content or ""
@@ -765,7 +765,7 @@ if current_messages and current_messages[-1]["role"] == "user":
                     st.write("本次回答参考了以下文档：")
                     for src in ref_sources:
                         st.caption(f"• {src}")
-
+    
             st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
                 {
                     "role": "assistant",
@@ -774,11 +774,12 @@ if current_messages and current_messages[-1]["role"] == "user":
                 }
             )
             save_history_to_disk()
-
-
+    
+    
         except Exception as e:
-
+    
             st.error(f"生成回答出错: {e}")
+
 
 
 
