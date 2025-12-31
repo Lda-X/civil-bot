@@ -672,8 +672,6 @@ if current_messages and current_messages[-1]["role"] == "user":
         else:
             pass
 
-        context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
-
         # 3. 准备 Prompt 所需的变量
         context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
         context_explanation = "\n".join(list_explanation) if list_explanation else "暂无详细解读"
@@ -781,6 +779,7 @@ if current_messages and current_messages[-1]["role"] == "user":
         except Exception as e:
 
             st.error(f"生成回答出错: {e}")
+
 
 
 
