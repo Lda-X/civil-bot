@@ -674,113 +674,114 @@ if current_messages and current_messages[-1]["role"] == "user":
 
         context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
 
-            # 3. 准备 Prompt 所需的变量
-            context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
-            context_explanation = "\n".join(list_explanation) if list_explanation else "暂无详细解读"
-            context_case = "\n".join(list_case) if list_case else "暂无相关案例"
-            context_risk_tip = "\n".join(list_risk) if list_risk else "暂无风险提示"
+        # 3. 准备 Prompt 所需的变量
+        context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
+        context_explanation = "\n".join(list_explanation) if list_explanation else "暂无详细解读"
+        context_case = "\n".join(list_case) if list_case else "暂无相关案例"
+        context_risk_tip = "\n".join(list_risk) if list_risk else "暂无风险提示"
 
-            context_application_point = ""
-            context_main_point = ""
-            context_scenario = ""
-            history_str = ""
-            recent_history = current_messages[:-1][-4:] 
+        context_application_point = ""
+        context_main_point = ""
+        context_scenario = ""
+        history_str = ""
+        recent_history = current_messages[:-1][-4:] 
+        
+        if recent_history:
+            history_str = "\n**【历史对话参考】：**\n"
+            for msg in recent_history:
+                role_label = "用户" if msg["role"] == "user" else "AI助手"
+                clean_content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
+                history_str += f"{role_label}：{clean_content}\n"
+        else:
+            history_str = "（无历史对话）"
+        prompt = last_user_msg
+
+        #Prompt
+        system_prompt = f"""
+        你是一位经验丰富的中国法律专家，精通《中华人民共和国民法典》及其配套的权威解读、司法案例、生活场景示例和风险提示。
+        ### 🛑 核心指令（请务必优先执行）：
+        请先判断用户的【输入意图】：
+        👉 **情况一：如果是日常问候、闲聊或无具体语义的输入**（例如："你好"、"在吗"、"你是谁"、"Hi"）：
+            - 请直接用亲切、自然的语气回复。
+            - 简要介绍你的身份（民法典智能助手），并引导用户提问法律问题。
+            - **严禁**使用下方的法律回答模板，**忽略**上下文信息。
+        👉 **情况二：如果是法律咨询、具体问题或搜索请求**：
+            - 请结合【上下文信息】，**严格**按照以下结构进行专业解答：
+        -------------------------------------------------
+        【法律咨询回答结构】
+            ### 1. 👨‍⚖️ **权威法律分析**
+            - **法律条文依据**：优先引用《民法典》原文。请明确指出是“第XXX条”。
+            - **立法原意与司法解释**：结合检索到的专家解读，阐述该条文的立法精神和司法实践中的理解。
+            - **核心要点**：提炼条文主旨和关键的适用要点。
+
+            ### 2. 💡 **情景化解读与案例说明**
+            - **生活化场景模拟**：将抽象的法律条文，通过一个贴近用户生活或工作场景的**具体示例**来阐述。
+            - **典型案例分析**：引用检索到的真实案例，说明法律在实践中的具体应用方式、责任划分及法律后果。
+            - **风险规避**：根据检索到的风险提示，告知用户在类似情境下可能存在的风险点。
+
+            ### 3. ✅ **专业行动建议**
+            - 基于以上分析，提供1-3条可操作的、具有建设性的行动建议。
+
+        ---
+        **【可参考的上下文信息】**
+
+        **《民法典》原文片段：**
+        {chr(10).join(context_articles)}
+
+        **专家解读与适用要点：**
+        {context_explanation}
+        {context_application_point}
+        {context_main_point}
+        {history_str}
+        **典型案例与生活场景：**
+        {context_case}
+        {context_scenario}
             
-            if recent_history:
-                history_str = "\n**【历史对话参考】：**\n"
-                for msg in recent_history:
-                    role_label = "用户" if msg["role"] == "user" else "AI助手"
-                    clean_content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
-                    history_str += f"{role_label}：{clean_content}\n"
+        **相关风险提示：**
+        {context_risk_tip}
+            
+        **【用户问题】：**
+        {prompt}
+"""
+
+    # 生成回答
+    with st.chat_message("assistant", avatar="⚖️"):
+        placeholder = st.empty()
+        full_response = ""
+
+        try:
+            stream = get_zhipu_chat_response(system_prompt, temperature, top_p, do_stream)
+
+            if do_stream:
+                for chunk in stream:
+                    content = chunk.choices[0].delta.content or ""
+                    full_response += content
+                    placeholder.markdown(full_response + "▌")
+                placeholder.markdown(full_response)
             else:
-                history_str = "（无历史对话）"
-            prompt = last_user_msg
-
-            #Prompt
-            system_prompt = f"""
-            你是一位经验丰富的中国法律专家，精通《中华人民共和国民法典》及其配套的权威解读、司法案例、生活场景示例和风险提示。
-            ### 🛑 核心指令（请务必优先执行）：
-            请先判断用户的【输入意图】：
-            👉 **情况一：如果是日常问候、闲聊或无具体语义的输入**（例如："你好"、"在吗"、"你是谁"、"Hi"）：
-                - 请直接用亲切、自然的语气回复。
-                - 简要介绍你的身份（民法典智能助手），并引导用户提问法律问题。
-                - **严禁**使用下方的法律回答模板，**忽略**上下文信息。
-            👉 **情况二：如果是法律咨询、具体问题或搜索请求**：
-                - 请结合【上下文信息】，**严格**按照以下结构进行专业解答：
-            -------------------------------------------------
-            【法律咨询回答结构】
-                ### 1. 👨‍⚖️ **权威法律分析**
-                - **法律条文依据**：优先引用《民法典》原文。请明确指出是“第XXX条”。
-                - **立法原意与司法解释**：结合检索到的专家解读，阐述该条文的立法精神和司法实践中的理解。
-                - **核心要点**：提炼条文主旨和关键的适用要点。
-    
-                ### 2. 💡 **情景化解读与案例说明**
-                - **生活化场景模拟**：将抽象的法律条文，通过一个贴近用户生活或工作场景的**具体示例**来阐述。
-                - **典型案例分析**：引用检索到的真实案例，说明法律在实践中的具体应用方式、责任划分及法律后果。
-                - **风险规避**：根据检索到的风险提示，告知用户在类似情境下可能存在的风险点。
-    
-                ### 3. ✅ **专业行动建议**
-                - 基于以上分析，提供1-3条可操作的、具有建设性的行动建议。
-    
-            ---
-            **【可参考的上下文信息】**
-    
-            **《民法典》原文片段：**
-            {chr(10).join(context_articles)}
-    
-            **专家解读与适用要点：**
-            {context_explanation}
-            {context_application_point}
-            {context_main_point}
-            {history_str}
-            **典型案例与生活场景：**
-            {context_case}
-            {context_scenario}
+                full_response = stream.choices[0].message.content
+                placeholder.markdown(full_response)
                 
-            **相关风险提示：**
-            {context_risk_tip}
-                
-            **【用户问题】：**
-            {prompt}
-    """
+            if ref_sources:
+                with st.expander("参考来源"):
+                    st.write("本次回答参考了以下文档：")
+                    for src in ref_sources:
+                        st.caption(f"• {src}")
 
-        # 生成回答
-        with st.chat_message("assistant", avatar="⚖️"):
-            placeholder = st.empty()
-            full_response = ""
-
-            try:
-                stream = get_zhipu_chat_response(system_prompt, temperature, top_p, do_stream)
-
-                if do_stream:
-                    for chunk in stream:
-                        content = chunk.choices[0].delta.content or ""
-                        full_response += content
-                        placeholder.markdown(full_response + "▌")
-                    placeholder.markdown(full_response)
-                else:
-                    full_response = stream.choices[0].message.content
-                    placeholder.markdown(full_response)
-                    
-                if ref_sources:
-                    with st.expander("参考来源"):
-                        st.write("本次回答参考了以下文档：")
-                        for src in ref_sources:
-                            st.caption(f"• {src}")
-
-                st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
-                    {
-                        "role": "assistant",
-                        "content": full_response,
-                        "sources": sorted(list(ref_sources)) if ref_sources else []
-                    }
-                )
-                save_history_to_disk()
+            st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
+                {
+                    "role": "assistant",
+                    "content": full_response,
+                    "sources": sorted(list(ref_sources)) if ref_sources else []
+                }
+            )
+            save_history_to_disk()
 
 
-            except Exception as e:
+        except Exception as e:
 
-                st.error(f"生成回答出错: {e}")
+            st.error(f"生成回答出错: {e}")
+
 
 
 
