@@ -371,6 +371,29 @@ def get_zhipu_chat_response(prompt, temperature=0.5, top_p=0.9,do_stream=True):
         stream=do_stream
     )
     return response
+
+def check_is_legal_query(query):
+    if len(query) < 4 and query in ["你好", "在吗", "hi", "hello", "您好"]:
+        return False
+        
+    client = ZhipuAI(api_key=ZHIPU_API_KEY)
+    prompt = f"""
+    请判断用户的输入是否与【法律咨询、民法典、司法案例、维权】相关。
+    用户输入："{query}"
+    
+    只需要回答：是 或 否
+    """
+    try:
+        response = client.chat.completions.create(
+            model="glm-3-turbo", 
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=5
+        )
+        result = response.choices[0].message.content.strip()
+        return "是" in result
+    except:
+        return True
 #界面逻辑
 #初始化Session State
 if "messages" not in st.session_state:
@@ -617,32 +640,39 @@ if current_messages and current_messages[-1]["role"] == "user":
     last_user_msg = current_messages[-1]["content"]
 
     with chat_container:
-        with st.spinner("正在查阅民法典..."):
-            docs = st.session_state.vector_store.similarity_search(last_user_msg, k=3)
+        is_legal = check_is_legal_query(last_user_msg)
+        list_articles = []
+        list_explanation = []
+        list_case = []
+        list_risk = []
+        ref_sources = set()
+        if is_legal:
+            with st.spinner("正在查阅民法典..."):
+                docs = st.session_state.vector_store.similarity_search(last_user_msg, k=3)
 
-            # 1. 初始化容器
-            list_articles = []
-            list_explanation = []
-            list_case = []
-            list_risk = []
+                # 2. 遍历文档进行分类
+                for d in docs:
+                    src = d.metadata.get('source', '未知来源')
+                    type_ = d.metadata.get('type', '未知')
+                    article_title = d.metadata.get('article', '')
+                    if article_title:
+                        ref_sources.add(f"{src} - {article_title}")
+                    else:
+                        ref_sources.add(f"{src} ({type_})")
+                        
+                    content = d.page_content
+                    if type_ == "article":
+                        list_articles.append(content)
+                    elif type_ == "case":
+                        list_case.append(content)
+                    elif type_ == "risk_tip":
+                        list_risk.append(content)
+                    else:
+                        list_explanation.append(content)
+        else:
+            pass
 
-            ref_sources = set()
-
-            # 2. 遍历文档进行分类
-            for d in docs:
-                src = d.metadata.get('source', '未知来源')
-                type_ = d.metadata.get('type', '未知')
-                ref_sources.add(f"{src} ({type_})")
-                content = d.page_content
-                
-                if type_ == "article":
-                    list_articles.append(content)
-                elif type_ == "case":
-                    list_case.append(content)
-                elif type_ == "risk_tip":
-                    list_risk.append(content)
-                else:
-                    list_explanation.append(content)
+        context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
 
             # 3. 准备 Prompt 所需的变量
             context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
@@ -731,11 +761,12 @@ if current_messages and current_messages[-1]["role"] == "user":
                 else:
                     full_response = stream.choices[0].message.content
                     placeholder.markdown(full_response)
-
-                with st.expander("参考来源"):
-                    st.write("本次回答参考了以下文档：")
-                    for src in ref_sources:
-                        st.caption(f"• {src}")
+                    
+                if ref_sources:
+                    with st.expander("参考来源"):
+                        st.write("本次回答参考了以下文档：")
+                        for src in ref_sources:
+                            st.caption(f"• {src}")
 
                 st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
                     {
@@ -750,6 +781,7 @@ if current_messages and current_messages[-1]["role"] == "user":
             except Exception as e:
 
                 st.error(f"生成回答出错: {e}")
+
 
 
 
