@@ -640,61 +640,64 @@ if current_messages and current_messages[-1]["role"] == "user":
     last_user_msg = current_messages[-1]["content"]
 
     with chat_container:
-        is_legal = check_is_legal_query(last_user_msg)
+        # 👇 1. 先判断意图 (假设你已经定义了 check_is_legal_query 函数)
+        # 如果还没定义那个函数，就把下面这就行改成: is_legal = True
+        try:
+            is_legal = check_is_legal_query(last_user_msg)
+        except:
+            is_legal = True # 容错
+        
+        # 👇 2. 初始化变量 (必须在 if is_legal 之前定义，防止变量未定义报错)
         list_articles = []
         list_explanation = []
         list_case = []
         list_risk = []
         ref_sources = set()
+
+        # 👇 3. 只有是法律问题时，才去查向量库
         if is_legal:
             with st.spinner("正在查阅民法典..."):
-                docs = st.session_state.vector_store.similarity_search(last_user_msg, k=3)
-
-                # 2. 遍历文档进行分类
-                for d in docs:
-                    src = d.metadata.get('source', '未知来源')
-                    type_ = d.metadata.get('type', '未知')
-                    article_title = d.metadata.get('article', '')
-                    if article_title:
-                        ref_sources.add(f"{src} - {article_title}")
-                    else:
-                        ref_sources.add(f"{src} ({type_})")
+                try:
+                    docs = st.session_state.vector_store.similarity_search(last_user_msg, k=3)
+                    
+                    # 遍历文档进行分类
+                    for d in docs:
+                        src = d.metadata.get('source', '未知来源')
+                        type_ = d.metadata.get('type', '未知')
                         
-                    content = d.page_content
-                    if type_ == "article":
-                        list_articles.append(content)
-                    elif type_ == "case":
-                        list_case.append(content)
-                    elif type_ == "risk_tip":
-                        list_risk.append(content)
-                    else:
-                        list_explanation.append(content)
-        else:
-            pass
-
-        # 3. 准备 Prompt 所需的变量
+                        # 获取法条标题
+                        article_title = d.metadata.get('article', '')
+                        if article_title:
+                            ref_sources.add(f"{src} - {article_title}")
+                        else:
+                            ref_sources.add(f"{src} ({type_})")
+                        
+                        content = d.page_content
+                        if type_ == "article":
+                            list_articles.append(content)
+                        elif type_ == "case":
+                            list_case.append(content)
+                        elif type_ == "risk_tip":
+                            list_risk.append(content)
+                        else:
+                            list_explanation.append(content)
+                except Exception as e:
+                    st.error(f"检索过程出错: {e}")
+        
+        # 👇👇👇 关键点：这里的缩进要回退，和上面的 'if is_legal:' 对齐
+        # 4. 准备 Context 变量 (无论是否检索，这里都要执行)
         context_articles = list_articles if list_articles else ["暂无直接相关法律条文"]
         context_explanation = "\n".join(list_explanation) if list_explanation else "暂无详细解读"
         context_case = "\n".join(list_case) if list_case else "暂无相关案例"
         context_risk_tip = "\n".join(list_risk) if list_risk else "暂无风险提示"
-    
+
         context_application_point = ""
         context_main_point = ""
         context_scenario = ""
-        history_str = ""
-        recent_history = current_messages[:-1][-4:] 
-        
-        if recent_history:
-            history_str = "\n**【历史对话参考】：**\n"
-            for msg in recent_history:
-                role_label = "用户" if msg["role"] == "user" else "AI助手"
-                clean_content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
-                history_str += f"{role_label}：{clean_content}\n"
-        else:
-            history_str = "（无历史对话）"
+
         prompt = last_user_msg
-    
-        #Prompt
+
+        # 5. 构建 Prompt
         system_prompt = f"""
         你是一位经验丰富的中国法律专家，精通《中华人民共和国民法典》及其配套的权威解读、司法案例、生活场景示例和风险提示。
         ### 🛑 核心指令（请务必优先执行）：
@@ -711,26 +714,25 @@ if current_messages and current_messages[-1]["role"] == "user":
             - **法律条文依据**：优先引用《民法典》原文。请明确指出是“第XXX条”。
             - **立法原意与司法解释**：结合检索到的专家解读，阐述该条文的立法精神和司法实践中的理解。
             - **核心要点**：提炼条文主旨和关键的适用要点。
-    
+
             ### 2. 💡 **情景化解读与案例说明**
             - **生活化场景模拟**：将抽象的法律条文，通过一个贴近用户生活或工作场景的**具体示例**来阐述。
             - **典型案例分析**：引用检索到的真实案例，说明法律在实践中的具体应用方式、责任划分及法律后果。
             - **风险规避**：根据检索到的风险提示，告知用户在类似情境下可能存在的风险点。
-    
+
             ### 3. ✅ **专业行动建议**
             - 基于以上分析，提供1-3条可操作的、具有建设性的行动建议。
-    
-        ---
+
         **【可参考的上下文信息】**
-    
+
         **《民法典》原文片段：**
         {chr(10).join(context_articles)}
-    
+
         **专家解读与适用要点：**
         {context_explanation}
         {context_application_point}
         {context_main_point}
-        {history_str}
+            
         **典型案例与生活场景：**
         {context_case}
         {context_scenario}
@@ -740,45 +742,47 @@ if current_messages and current_messages[-1]["role"] == "user":
             
         **【用户问题】：**
         {prompt}
-    """
-    
-    # 生成回答
-    with st.chat_message("assistant", avatar="⚖️"):
-        placeholder = st.empty()
-        full_response = ""
-    
-        try:
-            stream = get_zhipu_chat_response(system_prompt, temperature, top_p, do_stream)
-    
-            if do_stream:
-                for chunk in stream:
-                    content = chunk.choices[0].delta.content or ""
-                    full_response += content
-                    placeholder.markdown(full_response + "▌")
-                placeholder.markdown(full_response)
-            else:
-                full_response = stream.choices[0].message.content
-                placeholder.markdown(full_response)
-                
-            if ref_sources:
-                with st.expander("参考来源"):
-                    st.write("本次回答参考了以下文档：")
-                    for src in ref_sources:
-                        st.caption(f"• {src}")
-    
-            st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
-                {
-                    "role": "assistant",
-                    "content": full_response,
-                    "sources": sorted(list(ref_sources)) if ref_sources else []
-                }
-            )
-            save_history_to_disk()
-    
-    
-        except Exception as e:
-    
-            st.error(f"生成回答出错: {e}")
+        """
+
+        # 6. 生成回答
+        with st.chat_message("assistant", avatar="⚖️"):
+            placeholder = st.empty()
+            full_response = ""
+
+            try:
+                # 调用模型（记得去掉 top_k 参数）
+                stream = get_zhipu_chat_response(system_prompt, temperature, top_p, do_stream)
+
+                if do_stream:
+                    for chunk in stream:
+                        content = chunk.choices[0].delta.content or ""
+                        full_response += content
+                        placeholder.markdown(full_response + "▌")
+                    placeholder.markdown(full_response)
+                else:
+                    full_response = stream.choices[0].message.content
+                    placeholder.markdown(full_response)
+
+                # 👇 7. 只有当 ref_sources 有内容时，才显示“参考来源”
+                if ref_sources:
+                    with st.expander("参考来源", expanded=False):
+                        st.write("本次回答参考了以下文档：")
+                        for src in ref_sources:
+                            st.caption(f"• {src}")
+
+                # 保存记录
+                st.session_state.all_chats[st.session_state.current_chat_id]["messages"].append(
+                    {
+                        "role": "assistant",
+                        "content": full_response,
+                        "sources": sorted(list(ref_sources)) if ref_sources else []
+                    }
+                )
+                save_history_to_disk()
+
+            except Exception as e:
+                st.error(f"生成回答出错: {e}")
+
 
 
 
